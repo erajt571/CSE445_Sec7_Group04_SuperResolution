@@ -1,0 +1,365 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+body { margin:0; font-family: "Times New Roman", serif; color:#111; }
+.page { width:210mm; height:297mm; padding:13mm 12mm 12mm; position:relative; page-break-after:always; overflow:hidden; }
+.page:last-child { page-break-after:auto; }
+.header { position:absolute; top:4.2mm; left:12mm; right:12mm; font-size:7.6pt; text-align:center; border-bottom:0.35pt solid #777; padding-bottom:1.2mm; }
+.pageno { position:absolute; bottom:5mm; left:0; right:0; text-align:center; font-size:8.6pt; }
+.title { font-size:16pt; font-weight:bold; text-align:center; margin:1.5mm 0 2.4mm; }
+.authors { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4mm; text-align:center; font-size:8.5pt; margin-bottom:3mm; line-height:1.16; }
+.author-name { font-weight:bold; }
+.cols { display:grid; grid-template-columns:1fr 1fr; gap:6.5mm; align-items:start; }
+.col { min-width:0; }
+h2 { font-size:11.2pt; margin:2.2mm 0 1mm; line-height:1.05; }
+h3 { font-size:9.9pt; margin:1.8mm 0 0.8mm; }
+p { font-size:9.2pt; line-height:1.26; text-align:justify; margin:0 0 1.5mm; }
+.abstract { font-size:9.1pt; line-height:1.24; text-align:justify; margin-bottom:1.4mm; }
+.keywords { font-size:8.9pt; margin-bottom:1.7mm; }
+ul,ol { margin:0.8mm 0 1.5mm 4mm; padding-left:3mm; font-size:9.0pt; line-height:1.23; }
+li { margin-bottom:0.7mm; }
+.figure { margin:2mm 0 2.1mm; text-align:center; break-inside:avoid; }
+.figure img { max-width:100%; max-height:60mm; object-fit:contain; }
+.figure.wide img { width:100%; max-height:51mm; }
+.caption { font-size:8.0pt; line-height:1.16; text-align:justify; margin-top:0.8mm; }
+.eq { text-align:center; font-size:9pt; margin:2mm 0; }
+table { width:100%; border-collapse:collapse; font-size:8.2pt; margin:1.5mm 0 2mm; }
+th,td { border:0.45pt solid #666; padding:1.05mm 1.1mm; vertical-align:top; }
+th { font-weight:bold; background:#f0f0f0; }
+.small { font-size:8.2pt; line-height:1.20; }
+.note { border-left:1.2pt solid #444; padding-left:2mm; font-size:8.6pt; }
+.refs { font-size:7.9pt; line-height:1.17; }
+.ref { margin:0 0 1.15mm; text-align:left; }
+.spacer { height:1mm; }
+.metric { font-weight:bold; }
+</style>
+</head>
+<body>
+
+<section class="page">
+  <div class="header">CSE445 | Section 07 | Project Group No. 04 | Kazi Eraj Al Minahi Turjo (1831906642) | Shamira Hossain Mila (2111089642) | Salman Khan Fahim (2031558642)</div>
+  <div class="title">Machine Learning-Based Single-Image Super-Resolution with SRCNN</div>
+  <div class="authors">
+    <div><span class="author-name">Kazi Eraj Al Minahi Turjo</span><br>1831906642<br>Department of ECE<br>North South University</div>
+    <div><span class="author-name">Shamira Hossain Mila</span><br>2111089642<br>Department of ECE<br>North South University</div>
+    <div><span class="author-name">Salman Khan Fahim</span><br>2031558642<br>Department of ECE<br>North South University</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <h2>Abstract</h2>
+      <p class="abstract">This project studies single-image super-resolution using a compact Super-Resolution Convolutional Neural Network (SRCNN). The task is to reconstruct a 256x256 image from a 64x64 low-resolution input at an upscale factor of four. The system first performs bicubic interpolation and then applies a three-layer convolutional network that learns a residual refinement of local edges, textures, and color transitions. The standardized dataset contains 110 HR-LR image pairs divided into 90 training, 10 validation, and 10 test images. Training uses random aligned patches, geometric augmentation, Mean Squared Error loss, Adam optimization, StepLR scheduling, and mixed precision when a CUDA GPU is available. The recorded 100-epoch training run reached a best validation PSNR of 22.36 dB. Evaluation with the packaged checkpoint produced an average PSNR of 24.07 dB on the ten project test images compared with 23.05 dB for bicubic interpolation, an average gain of about 1.02 dB. A separate, visually different custom image set was also prepared to examine generalization beyond the original data. Results show that SRCNN can improve repeated edges and natural texture, but performance becomes less reliable on strongly out-of-distribution content.</p>
+      <p class="keywords"><b>Keywords:</b> Image Super-Resolution, SRCNN, Convolutional Neural Network, PSNR, PyTorch, Image Restoration.</p>
+      <h2>1 Introduction</h2>
+      <p>Images are often enlarged after being captured at a low resolution. Common examples include cropped mobile photographs, compressed web images, surveillance frames, old digital archives, and visual material used in education. A conventional resize operation increases width and height, but it does not truly restore the fine information that disappeared during downsampling.</p>
+      <p>Single-image super-resolution (SISR) attempts to estimate a higher-resolution image from one low-resolution input. Unlike fixed interpolation, a neural network can learn how edges, textures, and local structures usually appear by observing paired LR and HR examples. This makes SISR a suitable problem for demonstrating supervised learning, convolutional feature extraction, optimization, validation, and quantitative model evaluation within one project.</p>
+      <h3>1.1 Objective</h3>
+      <p>The main objective is to implement a reproducible x4 super-resolution pipeline and compare the learned reconstruction against bicubic interpolation. The project also aims to understand where the model works well, where it fails, and why a numerical metric such as PSNR should be interpreted together with visual evidence.</p>
+    </div>
+    <div class="col">
+      <h2>1.2 Main Contributions</h2>
+      <p>The project contributes a complete student-scale workflow rather than only a model definition. The main contributions are:</p>
+      <ol>
+        <li>Standardized 256x256 HR targets and corresponding 64x64 LR inputs for x4 reconstruction.</li>
+        <li>A three-layer RGB SRCNN implementation with 69,251 trainable parameters.</li>
+        <li>Patch-based training with random aligned cropping, flips, and 90-degree rotations.</li>
+        <li>A fixed 90/10/10 image split for training, validation, and final testing.</li>
+        <li>PSNR-based comparison against a bicubic baseline and saved four-panel visual results.</li>
+        <li>A new evaluation-only image set containing visually different scenes for generalization testing.</li>
+      </ol>
+      <h2>2 Related Work</h2>
+      <p>Bicubic interpolation is a standard image-resizing baseline. It estimates new pixels from nearby values using a fixed interpolation rule. The method is computationally inexpensive and stable, but it cannot learn the statistical relationship between degraded and high-resolution images.</p>
+      <p>Dong et al. introduced SRCNN as one of the earliest successful CNN approaches for SISR [1]. The original idea is simple: upscale the LR input first, then learn a sequence of convolutional mappings that refine the enlarged image. Even with a shallow network, the method demonstrated that learned filters could improve reconstruction compared with classical interpolation.</p>
+      <p>Later methods such as FSRCNN, ESPCN, EDSR, and GAN-based super-resolution improve speed or perceptual quality, but they also increase implementation and training complexity. For this course project, SRCNN is useful because every stage can be inspected directly: bicubic pre-upscaling, convolutional feature extraction, nonlinear mapping, reconstruction, loss calculation, backpropagation, and validation.</p>
+      <h3>2.1 Why SRCNN Was Selected</h3>
+      <p>The project uses a relatively small training collection, so a compact network is appropriate. SRCNN is also easy to explain from the GitHub code because its architecture contains only three convolutional layers. This reduces the risk that model complexity hides the core machine-learning concepts being demonstrated.</p>
+    </div>
+  </div>
+  <div class="pageno">1</div>
+</section>
+
+<section class="page">
+  <div class="header">CSE445 | Section 07 | Project Group No. 04 | Kazi Eraj Al Minahi Turjo (1831906642) | Shamira Hossain Mila (2111089642) | Salman Khan Fahim (2031558642)</div>
+  <div class="cols">
+    <div class="col">
+      <h2>3 Theoretical Background</h2>
+      <h3>3.1 Supervised Learning Formulation</h3>
+      <p>Each training example consists of a low-resolution image and its corresponding high-resolution target. Let <i>x</i> denote the LR input after bicubic enlargement and <i>y</i> the HR reference. The CNN learns parameters &theta; so that the reconstructed image <i>f</i><sub>&theta;</sub>(<i>x</i>) becomes as close as possible to <i>y</i>.</p>
+      <p>This is a supervised regression problem because the output is a continuous RGB image rather than a class label. During training, the loss measures reconstruction error. Backpropagation then computes gradients for all trainable convolution kernels.</p>
+      <h3>3.2 Convolutional Feature Learning</h3>
+      <p>Convolutional layers are suitable for images because the same learned filter is applied across different spatial positions. Early filters can respond to edges and color changes, while deeper filters combine those responses into more useful local patterns. In SRCNN, the first 9x9 layer provides a relatively wide receptive field for feature extraction. The second 5x5 layer maps those features, and the final 5x5 layer reconstructs three RGB channels.</p>
+      <h3>3.3 Mean Squared Error</h3>
+      <p>The implemented training notebook uses Mean Squared Error (MSE). For <i>N</i> output pixels, the loss is:</p>
+      <div class="eq">MSE = (1/N) &Sigma;<sub>i=1</sub><sup>N</sup> (y<sub>i</sub> - &ycirc;<sub>i</sub>)<sup>2</sup></div>
+      <p>MSE gives a larger penalty to larger pixel errors and is directly related to PSNR, the main metric used for evaluation.</p>
+      <h3>3.4 Peak Signal-to-Noise Ratio</h3>
+      <p>For images normalized to the [0,1] range, PSNR is calculated from MSE as:</p>
+      <div class="eq">PSNR = 10 log<sub>10</sub>(1 / MSE)</div>
+      <p>A higher PSNR generally indicates that the reconstructed image is closer to the HR reference at pixel level. However, PSNR does not fully describe perceived sharpness. A visually plausible edge can still reduce PSNR if it is shifted from the exact reference location.</p>
+    </div>
+    <div class="col">
+      <h2>3.5 Bicubic Baseline</h2>
+      <p>The LR input is only 64x64 pixels, while SRCNN expects an image at the target spatial size. Bicubic interpolation therefore enlarges the LR image to 256x256 before the CNN. The bicubic result is also kept as the non-learning baseline. This produces a fair comparison: both methods begin from the same LR information, but only SRCNN applies learned filters after the resize.</p>
+      <h2>4 Model Architecture</h2>
+      <div class="figure">
+        <img src="../support/srcnn_architecture.png" alt="SRCNN architecture">
+        <div class="caption"><b>Fig. 1.</b> SRCNN x4 inference pipeline. The 64x64 LR input is enlarged by bicubic interpolation, then refined through three convolutional layers to produce the final 256x256 RGB reconstruction.</div>
+      </div>
+      <table>
+        <tr><th>Layer</th><th>Input</th><th>Output</th><th>Kernel</th></tr>
+        <tr><td>Conv1 + ReLU</td><td>3 ch</td><td>64 ch</td><td>9x9</td></tr>
+        <tr><td>Conv2 + ReLU</td><td>64 ch</td><td>32 ch</td><td>5x5</td></tr>
+        <tr><td>Conv3</td><td>32 ch</td><td>3 ch</td><td>5x5</td></tr>
+      </table>
+      <p>The model has 69,251 trainable parameters. Padding keeps the spatial dimensions unchanged, so a 256x256 bicubic input produces a 256x256 SRCNN output. Unlike sub-pixel networks, SRCNN performs all learned convolution in the already enlarged image space.</p>
+      <h3>4.1 Forward Pass</h3>
+      <p>At inference time, an LR image is converted to RGB, bicubic-upscaled by four, converted to a tensor, and passed through the trained CNN. The output is clamped to the valid [0,1] pixel range before being converted back into an image. The same HR reference is used to compute PSNR for both bicubic and SRCNN outputs.</p>
+    </div>
+  </div>
+  <div class="figure wide" style="margin-top:3mm;">
+    <img src="../support/degradation_example.png" alt="Degradation example" style="max-height:48mm;">
+    <div class="caption"><b>Fig. 2.</b> Example of the controlled x4 degradation used in the project. The 256x256 HR reference is reduced to a 64x64 LR input; bicubic interpolation restores the dimensions but not the lost fine detail.</div>
+  </div>
+  <div class="pageno">2</div>
+</section>
+
+<section class="page">
+  <div class="header">CSE445 | Section 07 | Project Group No. 04 | Kazi Eraj Al Minahi Turjo (1831906642) | Shamira Hossain Mila (2111089642) | Salman Khan Fahim (2031558642)</div>
+  <div class="cols">
+    <div class="col">
+      <h2>5 Methodology</h2>
+      <h3>5.1 Image Standardization</h3>
+      <p>The project data is organized into paired HR and LR folders. HR images are standardized to 256x256 pixels. Their corresponding LR inputs are 64x64, creating an exact x4 scale relationship. This makes the training target unambiguous and ensures that every LR crop can be matched to the correct HR region.</p>
+      <h3>5.2 Train-Validation-Test Split</h3>
+      <p>The standardized collection contains 110 image pairs. Image IDs 0000-0089 are used for training, 0090-0099 for validation, and 0100-0109 for final testing. The split is fixed instead of randomizing on each run, so the same images remain in the same role throughout the experiment.</p>
+      <table>
+        <tr><th>Split</th><th>IDs</th><th>Count</th><th>Purpose</th></tr>
+        <tr><td>Train</td><td>0000-0089</td><td>90</td><td>Parameter updates</td></tr>
+        <tr><td>Validation</td><td>0090-0099</td><td>10</td><td>Model selection</td></tr>
+        <tr><td>Test</td><td>0100-0109</td><td>10</td><td>Final evaluation</td></tr>
+      </table>
+      <h3>5.3 Patch Extraction and Augmentation</h3>
+      <p>Instead of using the same full image during every update, the training dataset selects a random 32x32 patch from the LR image and the aligned 128x128 region from the HR target. A new crop can be selected the next time the image is sampled. Horizontal flips, vertical flips, and random rotations by 0, 90, 180, or 270 degrees further vary the input without changing the LR-HR alignment.</p>
+      <p>This strategy is important for a small dataset. The model repeatedly sees different spatial regions and orientations rather than memorizing one fixed crop. It also reduces memory use because each optimization step works on smaller patches.</p>
+      <h3>5.4 Custom Evaluation Set</h3>
+      <p>A second image set was prepared only for evaluation. It includes a night-time car scene, tiger, pizza, glass tower, macaw, mountain lake, wristwatch, and astronaut scene. These images were standardized to 256x256 and degraded to 64x64 using bicubic downsampling followed by a light Gaussian blur. They were not included in training or validation.</p>
+    </div>
+    <div class="col">
+      <h2>5.5 Training Procedure</h2>
+      <p>For each training batch, the LR patch is first bicubic-upscaled by four. The enlarged input is passed through SRCNN, and MSE is calculated against the aligned HR patch. Adam updates the weights using the resulting gradients. A StepLR scheduler reduces the learning rate every 30 epochs by a factor of 0.5.</p>
+      <ol>
+        <li>Load paired LR and HR image IDs.</li>
+        <li>Select a random aligned LR-HR patch.</li>
+        <li>Apply optional flips and 90-degree rotation.</li>
+        <li>Bicubic-upscale the LR patch by x4.</li>
+        <li>Run the SRCNN forward pass.</li>
+        <li>Compute MSE loss against the HR target.</li>
+        <li>Backpropagate and update parameters with Adam.</li>
+        <li>Evaluate validation PSNR after each epoch.</li>
+        <li>Save the checkpoint whenever validation PSNR improves.</li>
+      </ol>
+      <h3>5.6 Reproducible Repository Workflow</h3>
+      <p>The final repository separates code, data, support utilities, results, and submission materials. The top-level <code>main.py</code> runs the custom evaluation set. The model definition, training script, preprocessing script, and evaluation script are stored under <code>support/</code>. The new custom images are kept under <code>data/evaluation_set/</code>, and their generated comparisons are saved under <code>support/new_results/</code>.</p>
+      <div class="note"><b>Implementation note.</b> The packaged trained checkpoint is named <code>best_srcnn_x4.pth</code> so that the filename matches the actual three-layer SRCNN architecture used by the code.</div>
+      <h2>6 Experimental Setup</h2>
+      <table>
+        <tr><th>Parameter</th><th>Value</th></tr>
+        <tr><td>Upscale factor</td><td>x4</td></tr>
+        <tr><td>Epochs</td><td>100</td></tr>
+        <tr><td>Batch size</td><td>16</td></tr>
+        <tr><td>Training patch</td><td>32x32 LR / 128x128 HR</td></tr>
+        <tr><td>Loss</td><td>MSE</td></tr>
+        <tr><td>Optimizer</td><td>Adam</td></tr>
+        <tr><td>Initial LR</td><td>1e-4</td></tr>
+        <tr><td>Scheduler</td><td>StepLR (30 epochs, gamma 0.5)</td></tr>
+        <tr><td>Metric</td><td>PSNR</td></tr>
+        <tr><td>Framework</td><td>PyTorch</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="figure wide" style="margin-top:3mm;">
+    <img src="../support/custom_evaluation_overview.png" alt="Custom evaluation overview" style="max-height:62mm;">
+    <div class="caption"><b>Fig. 3.</b> The separate custom evaluation set used for domain-shift testing. These eight scenes are visually different from the fixed project test split and are not used for training or validation.</div>
+  </div>
+  <div class="pageno">3</div>
+</section>
+
+<section class="page">
+  <div class="header">CSE445 | Section 07 | Project Group No. 04 | Kazi Eraj Al Minahi Turjo (1831906642) | Shamira Hossain Mila (2111089642) | Salman Khan Fahim (2031558642)</div>
+  <div class="cols">
+    <div class="col">
+      <h2>6.1 Training Behavior</h2>
+      <p>The recorded 100-epoch training run shows a rapid reduction in error during the early epochs followed by slower refinement. Validation PSNR rises sharply at first and then approaches a plateau. The best recorded validation PSNR is approximately <span class="metric">22.36 dB</span> near the end of training.</p>
+      <p>This shape is expected for a small CNN. Large improvements occur when the network first learns basic edge and color mappings. Later epochs mostly fine-tune the convolution kernels. The StepLR scheduler also lowers the learning rate during training so that updates become more conservative.</p>
+      <h3>6.2 Mixed Precision</h3>
+      <p>The training script enables PyTorch automatic mixed precision when CUDA is available. This reduces memory use and can accelerate GPU training. Gradient scaling is used so that small gradient values are less likely to underflow. The same script can still run on CPU, where mixed precision is disabled automatically.</p>
+      <h3>6.3 Checkpoint Selection</h3>
+      <p>Validation PSNR is calculated after each epoch. Whenever the score exceeds the previous best, the model state is saved. This means final testing uses the best validation checkpoint rather than simply the last epoch. The method helps reduce the chance of choosing a model based only on training loss.</p>
+    </div>
+    <div class="col">
+      <h2>6.4 Training History</h2>
+      <div class="figure">
+        <img src="../support/training_history.png" alt="Training history">
+        <div class="caption"><b>Fig. 4.</b> Recorded training history. MSE decreases rapidly in the early epochs while validation PSNR rises toward approximately 22.36 dB by the end of the run.</div>
+      </div>
+      <h2>7 Evaluation Protocol</h2>
+      <p>Two forms of evaluation are used. First, the bicubic and SRCNN reconstructions are compared numerically against the same HR reference using PSNR. Second, four-panel comparison figures show the pixelated LR input, bicubic output, SRCNN output, and HR reference side by side.</p>
+      <p>The packaged checkpoint is evaluated on the full ten-image project test split. With the current repository files, bicubic interpolation obtains an average PSNR of <b>23.05 dB</b>, while SRCNN obtains <b>24.07 dB</b>. The average improvement is therefore approximately <b>+1.02 dB</b>.</p>
+      <table>
+        <tr><th>Method</th><th>Average Test PSNR</th></tr>
+        <tr><td>Bicubic x4</td><td>23.05 dB</td></tr>
+        <tr><td>SRCNN x4</td><td>24.07 dB</td></tr>
+        <tr><td><b>Average gain</b></td><td><b>+1.02 dB</b></td></tr>
+      </table>
+      <p>Because the test split is small, the result should be interpreted as evidence for this project dataset rather than as a general benchmark against modern super-resolution systems.</p>
+    </div>
+  </div>
+  <h3 style="margin-top:3mm;">7.1 Full Project Test Split</h3>
+  <table style="font-size:8.0pt;">
+    <tr><th>ID</th><th>Bicubic</th><th>SRCNN</th><th>Gain</th><th>ID</th><th>Bicubic</th><th>SRCNN</th><th>Gain</th></tr>
+    <tr><td>0100</td><td>24.09</td><td>24.22</td><td>+0.13</td><td>0105</td><td>22.00</td><td>23.07</td><td>+1.07</td></tr>
+    <tr><td>0101</td><td>26.39</td><td>27.09</td><td>+0.70</td><td>0106</td><td>26.69</td><td>26.99</td><td>+0.30</td></tr>
+    <tr><td>0102</td><td>18.25</td><td>19.60</td><td>+1.35</td><td>0107</td><td>21.96</td><td>24.59</td><td>+2.63</td></tr>
+    <tr><td>0103</td><td>23.20</td><td>23.82</td><td>+0.62</td><td>0108</td><td>22.52</td><td>23.42</td><td>+0.90</td></tr>
+    <tr><td>0104</td><td>21.69</td><td>22.40</td><td>+0.71</td><td>0109</td><td>23.72</td><td>25.52</td><td>+1.80</td></tr>
+  </table>
+  <p class="small">All ten test images improve over the bicubic baseline with the packaged checkpoint. The largest gain is observed on image 0107 (+2.63 dB), while the smallest gain is on 0100 (+0.13 dB). The variation supports the later content-specific analysis.</p>
+  <div class="pageno">4</div>
+</section>
+
+<section class="page">
+  <div class="header">CSE445 | Section 07 | Project Group No. 04 | Kazi Eraj Al Minahi Turjo (1831906642) | Shamira Hossain Mila (2111089642) | Salman Khan Fahim (2031558642)</div>
+  <div class="figure wide">
+    <img src="../support/presentation_ready/0102_COMPARE.png" alt="Rocky shoreline comparison">
+    <div class="caption"><b>Fig. 5.</b> Rocky shoreline test image (0102). Bicubic PSNR is approximately 18.25 dB, while SRCNN reaches 19.60 dB. The learned model improves local boundaries among the irregular rocks and increases PSNR by about +1.35 dB.</div>
+  </div>
+  <div class="figure wide">
+    <img src="../support/presentation_ready/0105_COMPARE.png" alt="Street vendor comparison">
+    <div class="caption"><b>Fig. 6.</b> Street-vendor test image (0105). SRCNN increases PSNR from approximately 22.00 dB to 23.07 dB. The result shows stronger local separation around the bicycle, hanging objects, clothing, and nearby vegetation.</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <h2>8 Results and Analysis</h2>
+      <h3>8.1 Texture and Irregular Edges</h3>
+      <p>Fig. 5 is a difficult low-PSNR case because the shoreline contains many irregular rock boundaries and small texture changes. Bicubic interpolation smooths these regions uniformly. SRCNN cannot recreate every lost detail, but the learned filters improve the pixel-level match enough to provide one of the larger gains in the test set.</p>
+      <p>Fig. 6 demonstrates a more complex natural scene. The image contains a person, bicycle, small hanging objects, water, and vegetation. SRCNN provides a gain of about 1.07 dB, showing that the learned mapping is not limited to a single object category.</p>
+    </div>
+    <div class="col">
+      <h3>8.2 Representative Test Metrics</h3>
+      <table>
+        <tr><th>Image</th><th>Bicubic</th><th>SRCNN</th><th>Gain</th></tr>
+        <tr><td>0101 scarecrow</td><td>26.39</td><td>27.09</td><td>+0.70</td></tr>
+        <tr><td>0102 shoreline</td><td>18.25</td><td>19.60</td><td>+1.35</td></tr>
+        <tr><td>0103 monkey</td><td>23.20</td><td>23.82</td><td>+0.62</td></tr>
+        <tr><td>0104 city</td><td>21.69</td><td>22.40</td><td>+0.71</td></tr>
+        <tr><td>0105 vendor</td><td>22.00</td><td>23.07</td><td>+1.07</td></tr>
+        <tr><td>0108 parliament</td><td>22.52</td><td>23.42</td><td>+0.90</td></tr>
+      </table>
+      <p>The improvements are moderate rather than extreme. This is consistent with the role of SRCNN as a shallow refinement model. The network starts from an already enlarged bicubic image and learns corrections, so gains are normally incremental rather than a complete recovery of missing high-frequency information.</p>
+    </div>
+  </div>
+  <div class="pageno">5</div>
+</section>
+
+<section class="page">
+  <div class="header">CSE445 | Section 07 | Project Group No. 04 | Kazi Eraj Al Minahi Turjo (1831906642) | Shamira Hossain Mila (2111089642) | Salman Khan Fahim (2031558642)</div>
+  <div class="figure wide">
+    <img src="../support/presentation_ready/0103_COMPARE.png" alt="Monkey comparison">
+    <div class="caption"><b>Fig. 7.</b> Monkey test image (0103). SRCNN raises PSNR from approximately 23.20 dB to 23.82 dB. Fur boundaries, the tree surface, and local foliage transitions provide a varied natural reconstruction case.</div>
+  </div>
+  <div class="figure wide">
+    <img src="../support/presentation_ready/0108_COMPARE.png" alt="Parliament building comparison">
+    <div class="caption"><b>Fig. 8.</b> Parliament-building test image (0108). SRCNN reaches about 23.42 dB compared with 22.52 dB for bicubic. The improvement is visible mainly around high-contrast structural borders and repeated facade patterns.</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <h3>8.3 Natural Content</h3>
+      <p>The monkey image combines fur, bark, and foliage. These structures contain a mixture of smooth regions and irregular edges. The positive PSNR gain shows that the model can refine more than one type of local pattern within the same image.</p>
+      <p>The result also illustrates an important limitation: the final SRCNN output remains close to the bicubic baseline. A shallow CNN does not invent unlimited detail; it learns a conservative mapping that tends to improve local reconstruction while maintaining overall image structure.</p>
+    </div>
+    <div class="col">
+      <h3>8.4 Structural Content</h3>
+      <p>The parliament example contains straight lines, repeated windows, grass, and flowers. Unlike natural texture, geometric content makes pixel alignment especially important. Even small shifts in a straight edge create PSNR error. The observed +0.90 dB improvement suggests that the learned filters can still provide useful corrections around repeated structural borders.</p>
+      <p>These results are more balanced than claiming that learned super-resolution always outperforms interpolation. The test set contains different scene types, and the amount of improvement varies according to image content.</p>
+      <h3>8.5 Why Visual Inspection Still Matters</h3>
+      <p>PSNR measures pixel similarity, not semantic correctness. A result with slightly higher PSNR may still appear overly smooth, while a lower-PSNR result may look sharper. Therefore, the saved four-panel comparisons are part of the evaluation rather than decorative figures. They allow the reader to inspect exactly what changed between the two reconstruction methods.</p>
+    </div>
+  </div>
+  <div class="pageno">6</div>
+</section>
+
+<section class="page">
+  <div class="header">CSE445 | Section 07 | Project Group No. 04 | Kazi Eraj Al Minahi Turjo (1831906642) | Shamira Hossain Mila (2111089642) | Salman Khan Fahim (2031558642)</div>
+  <div class="figure wide">
+    <img src="../support/presentation_ready/night_car_COMPARE.png" alt="Night car stress test">
+    <div class="caption"><b>Fig. 9.</b> Custom night-car stress test. Bicubic reaches approximately 21.59 dB while SRCNN reaches 20.84 dB. The negative gain shows that the model does not generalize equally well to every visually unfamiliar scene.</div>
+  </div>
+  <div class="figure wide">
+    <img src="../support/presentation_ready/astronaut_COMPARE.png" alt="Astronaut stress test">
+    <div class="caption"><b>Fig. 10.</b> Custom astronaut stress test. Bicubic reaches approximately 20.91 dB and SRCNN 19.52 dB. Fine suit details, high-contrast terrain, and star-like points differ strongly from the small training distribution.</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <h2>9 Generalization Stress Test</h2>
+      <p>The custom image set was intentionally chosen to look different from the images highlighted in the main project results. Unlike the fixed ten-image test split, these scenes are not representative of the model's original data distribution. The purpose is to examine how the trained network behaves when it receives unfamiliar structures.</p>
+      <p>The night-car and astronaut examples both produce lower PSNR than bicubic. This is a useful result rather than something to hide. It demonstrates that a small CNN trained on limited data can over-specialize to the kinds of local patterns it saw during training. More diverse data would be required for strong generalization.</p>
+    </div>
+    <div class="col">
+      <h3>9.1 Domain Shift</h3>
+      <p>The night scene contains bright reflections, wet pavement, dark shadows, and sharp artificial lighting. The astronaut scene contains repeated suit textures, tiny point-like stars, strong black-white contrast, and fine rocky detail. These characteristics are different from much of the student-scale image collection. As a result, the learned convolution filters may make changes that increase pixel-level error.</p>
+      <h3>9.2 Practical Interpretation</h3>
+      <p>The correct conclusion is not that SRCNN is always superior or always inferior. On the packaged project test set, it improves average PSNR. On the custom stress-test images, performance is less reliable. This distinction makes the evaluation more realistic and supports the standard machine-learning principle that performance depends on how closely future inputs match the training distribution.</p>
+      <h3>9.3 Limitations</h3>
+      <ul>
+        <li>Only 110 standardized image pairs are available.</li>
+        <li>The model is shallow compared with modern SR networks.</li>
+        <li>MSE/PSNR encourages pixel accuracy but does not directly optimize perceptual realism.</li>
+        <li>Bicubic pre-upscaling increases computation in HR space.</li>
+        <li>Out-of-distribution scenes can produce lower PSNR than the baseline.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="pageno">7</div>
+</section>
+
+<section class="page">
+  <div class="header">CSE445 | Section 07 | Project Group No. 04 | Kazi Eraj Al Minahi Turjo (1831906642) | Shamira Hossain Mila (2111089642) | Salman Khan Fahim (2031558642)</div>
+  <div class="cols">
+    <div class="col">
+      <h2>10 Team Workflow and Repository</h2>
+      <p>The repository is divided so that each member can contribute to a real part of the implementation. Eraj handles model integration, the main entry point, final assembly, and project documentation. Shamira handles the new image-set preparation and HR-LR standardization workflow. Salman handles PSNR evaluation, comparison generation, and result export. These parts connect through shared folders rather than existing as isolated demonstration files.</p>
+      <p>The final structure also follows the course requirement of keeping a main runnable file, README, requirements file, data folder, support folder, and others folder. The report and later presentation/video files are stored in <code>others/</code>.</p>
+      <h2>11 Future Work</h2>
+      <p>Future improvements should focus first on data diversity. A larger dataset would reduce domain-shift problems and expose the model to more edges, textures, lighting conditions, and object categories. The evaluation can also be expanded with SSIM and perceptual metrics so that image quality is not judged by PSNR alone.</p>
+      <p>Architecturally, the project could compare SRCNN with FSRCNN or ESPCN for efficiency and with EDSR or GAN-based models for stronger perceptual detail. A lightweight user interface could allow a user to load an LR image, choose a model, and view Bicubic and neural outputs side by side.</p>
+      <h2>12 Conclusion</h2>
+      <p>This project implements a complete x4 single-image super-resolution pipeline using SRCNN. The 110 paired images are separated into training, validation, and test splits, while random patch extraction and augmentation provide variation during training. The model is trained with MSE, Adam, StepLR scheduling, and validation-based checkpoint selection.</p>
+      <p>Using the packaged checkpoint, SRCNN improves the average PSNR of the ten project test images from 23.05 dB for bicubic interpolation to 24.07 dB, an average gain of approximately 1.02 dB. Representative results show improvement on irregular texture, natural scenes, and structural edges. A separate custom image set shows weaker generalization on unfamiliar scenes, emphasizing that learned super-resolution depends strongly on training-data coverage.</p>
+      <p>Overall, the project demonstrates how supervised learning, convolutional neural networks, backpropagation, validation, baseline comparison, and error analysis can be combined into a practical image-restoration application.</p>
+    </div>
+    <div class="col">
+      <h2>Acknowledgments</h2>
+      <p>The authors thank the CSE445 course instructor at North South University for project guidance. Python, PyTorch, Torchvision, NumPy, Pillow, Matplotlib, Jupyter, and GitHub were used in the implementation. OpenAI tools were used for writing support and for generating the separate custom stress-test image set used only for additional evaluation.</p>
+      <h2>References</h2>
+      <div class="refs">
+        <p class="ref">[1] C. Dong, C. C. Loy, K. He, and X. Tang, “Image Super-Resolution Using Deep Convolutional Networks,” <i>IEEE Transactions on Pattern Analysis and Machine Intelligence</i>, vol. 38, no. 2, pp. 295-307, 2016.</p>
+        <p class="ref">[2] C. Dong, C. C. Loy, and X. Tang, “Accelerating the Super-Resolution Convolutional Neural Network,” in <i>European Conference on Computer Vision</i>, 2016.</p>
+        <p class="ref">[3] W. Shi et al., “Real-Time Single Image and Video Super-Resolution Using an Efficient Sub-Pixel Convolutional Neural Network,” in <i>Proc. CVPR</i>, 2016.</p>
+        <p class="ref">[4] B. Lim, S. Son, H. Kim, S. Nah, and K. M. Lee, “Enhanced Deep Residual Networks for Single Image Super-Resolution,” in <i>CVPR Workshops</i>, 2017.</p>
+        <p class="ref">[5] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, “Image Quality Assessment: From Error Visibility to Structural Similarity,” <i>IEEE Transactions on Image Processing</i>, vol. 13, no. 4, pp. 600-612, 2004.</p>
+        <p class="ref">[6] D. P. Kingma and J. Ba, “Adam: A Method for Stochastic Optimization,” in <i>International Conference on Learning Representations</i>, 2015.</p>
+        <p class="ref">[7] A. Paszke et al., “PyTorch: An Imperative Style, High-Performance Deep Learning Library,” in <i>Advances in Neural Information Processing Systems</i>, vol. 32, 2019.</p>
+        <p class="ref">[8] OpenAI, “ChatGPT and image generation tools,” used for writing assistance and creation of evaluation-only custom images, accessed 2026.</p>
+      </div>
+      <h2>Reproducibility Note</h2>
+      <p class="small">All comparison figures in this report correspond to files included in the repository. The project-test PSNR values are calculated from the packaged SRCNN checkpoint and the fixed LR-HR pairs, while the custom stress-test results are generated from the separate evaluation-only image set. The preprocessing, model definition, training procedure, and evaluation code are all included under <code>support/</code>.</p>
+    </div>
+  </div>
+  <div class="pageno">8</div>
+</section>
+
+</body>
+</html>
