@@ -1,0 +1,19 @@
+==============================================
+ Project: Image Super-Resolution using ESPCN
+    Group: 04 (CSE445 - Machine Learning)
+      Target Python Version: 3.12.3
+==============================================
+
+# Core Deep Learning Framework
+torch>=2.0.0             
+torchvision>=0.15.0
+
+# Data Processing & Image Handling
+numpy>=1.24.0 
+Pillow>=10.0.0
+
+# Visualization & Analysis 
+matplotlib>=3.7.0
+
+# Development Environment 
+jupyter>=1.0.0           
