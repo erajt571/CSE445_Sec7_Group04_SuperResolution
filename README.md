@@ -116,7 +116,7 @@ CSE445_Sec7_Group04_SuperResolution/
 |   |-- new_results/
 |   `-- presentation_ready/
 `-- others/
-    `-- final report / presentation / demo materials
+    `-- final report / presentation / demo material
 ```
 
 ## How to run
